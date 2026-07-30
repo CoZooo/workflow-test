@@ -44,15 +44,23 @@ jobs:
           output="$(brew livecheck --json "${TAP_NAME}/${FORMULA_NAME}")"
           ruby -rjson -e '
             version = JSON.parse(STDIN.read).fetch(0).fetch("version")
-            current = version.fetch("current")
-            latest = version.fetch("latest")
-            valid = /\A[0-9]+(?:\.[0-9]+)+\z/
-            abort "Invalid current version" unless valid.match?(current)
-            abort "Invalid latest version" unless valid.match?(latest)
+            normalize = lambda do |name, value|
+              text = value.to_s.strip
+              parts = text.split(".", -1)
+              valid = parts.length >= 2 && parts.all? do |part|
+                !part.empty? && part.each_char.all? { |char| char >= "0" && char <= "9" }
+              end
+              abort "Invalid #{name} version: #{value.inspect} (#{value.class})" unless valid
+              text
+            end
+            current = normalize.call("current", version.fetch("current"))
+            latest = normalize.call("latest", version.fetch("latest"))
+            outdated = version.fetch("outdated")
+            abort "Invalid outdated value: #{outdated.inspect}" unless [true, false].include?(outdated)
             File.open(ENV.fetch("GITHUB_OUTPUT"), "a") do |file|
               file.puts "current=#{current}"
               file.puts "latest=#{latest}"
-              file.puts "outdated=#{current != latest}"
+              file.puts "outdated=#{outdated}"
             end
           ' <<< "${output}"
       - name: Report no update
@@ -240,7 +248,7 @@ jobs:
             core.setOutput("pr_url", pull.html_url);
             core.notice(`Created pull request: ${pull.html_url}`);
 
-  enable_auto_merge:
+  auto_merge:
     needs: create_pull_request
     if: needs.create_pull_request.outputs.pr_url != ''
     runs-on: ubuntu-latest
