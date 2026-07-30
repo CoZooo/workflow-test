@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TAP_REPOSITORY: CoZooo/homebrew-tap
-  TAP_NAME: CoZooo/tap
+  TAP_REPOSITORY: CoZooo/homebrew-tap-test
+  TAP_NAME: CoZooo/tap-test
   FORMULA_PATH: Formula/mslx-daemon.rb
   FORMULA_NAME: mslx-daemon
   ENABLE_AUTO_MERGE: ${{ vars.ENABLE_AUTO_MERGE || 'enable' }}
