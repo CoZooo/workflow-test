@@ -141,6 +141,7 @@ jobs:
           tar -tzf assets/x64.tar.gz > /dev/null
           gh api -H "Accept: application/vnd.github.raw+json" \
             "repos/${TAP_REPOSITORY}/contents/${FORMULA_PATH}" > "prepared/${FORMULA_PATH}"
+          echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"
           echo "ARM_URL=${arm_url}" >> "${GITHUB_ENV}"
           echo "INTEL_URL=${intel_url}" >> "${GITHUB_ENV}"
           echo "ARM_SHA=$(shasum -a 256 assets/arm64.tar.gz | awk '{print $1}')" >> "${GITHUB_ENV}"
