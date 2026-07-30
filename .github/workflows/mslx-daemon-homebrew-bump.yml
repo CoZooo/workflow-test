@@ -42,27 +42,47 @@ jobs:
         run: |
           set -euo pipefail
           output="$(brew livecheck --json "${TAP_NAME}/${FORMULA_NAME}")"
-          ruby -rjson -e '
-            version = JSON.parse(STDIN.read).fetch(0).fetch("version")
-            normalize = lambda do |name, value|
-              text = value.to_s.strip
-              parts = text.split(".", -1)
-              valid = value.is_a?(String) && parts.length >= 2 && parts.all? do |part|
-                !part.empty? && part.each_char.all? { |char| char >= "0" && char <= "9" }
+          printf '%s\n' "${output}"
+
+          values="$(jq -er --arg formula "${FORMULA_NAME}" '
+            [ .[] | select(.formula == $formula) ] as $matches
+            | if ($matches | length) != 1 then
+                error("Expected exactly one livecheck record for \($formula), found \($matches | length)")
+              elif ($matches[0].version.current | type) != "string" then
+                error("version.current must be a string")
+              elif ($matches[0].version.latest | type) != "string" then
+                error("version.latest must be a string")
+              elif ($matches[0].version.outdated | type) != "boolean" then
+                error("version.outdated must be a boolean")
+              else
+                [
+                  $matches[0].version.current,
+                  $matches[0].version.latest,
+                  $matches[0].version.outdated
+                ] | @tsv
               end
-              abort "Invalid #{name} version: #{value.inspect} (#{value.class})" unless valid
-              text
-            end
-            current = normalize.call("current", version.fetch("current"))
-            latest = normalize.call("latest", version.fetch("latest"))
-            outdated = version.fetch("outdated")
-            abort "Invalid outdated value: #{outdated.inspect}" unless [true, false].include?(outdated)
-            File.open(ENV.fetch("GITHUB_OUTPUT"), "a") do |file|
-              file.puts "current=#{current}"
-              file.puts "latest=#{latest}"
-              file.puts "outdated=#{outdated}"
-            end
-          ' <<< "${output}"
+          ' <<< "${output}")"
+          IFS=$'\t' read -r current latest outdated <<< "${values}"
+
+          version_pattern='^[0-9]+([.][0-9]+)+$'
+          [[ "${current}" =~ ${version_pattern} ]] || {
+            echo "Invalid current version: ${current}" >&2
+            exit 1
+          }
+          [[ "${latest}" =~ ${version_pattern} ]] || {
+            echo "Invalid latest version: ${latest}" >&2
+            exit 1
+          }
+          [[ "${outdated}" == "true" || "${outdated}" == "false" ]] || {
+            echo "Invalid outdated value: ${outdated}" >&2
+            exit 1
+          }
+
+          {
+            printf 'current=%s\n' "${current}"
+            printf 'latest=%s\n' "${latest}"
+            printf 'outdated=%s\n' "${outdated}"
+          } >> "${GITHUB_OUTPUT}"
       - name: Report no update
         if: steps.livecheck.outputs.outdated == 'false'
         run: echo "${FORMULA_NAME} is already at ${{ steps.livecheck.outputs.current }}."
