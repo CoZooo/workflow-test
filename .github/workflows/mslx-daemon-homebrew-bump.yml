@@ -47,7 +47,7 @@ jobs:
             normalize = lambda do |name, value|
               text = value.to_s.strip
               parts = text.split(".", -1)
-              valid = parts.length >= 2 && parts.all? do |part|
+              valid = value.is_a?(String) && parts.length >= 2 && parts.all? do |part|
                 !part.empty? && part.each_char.all? { |char| char >= "0" && char <= "9" }
               end
               abort "Invalid #{name} version: #{value.inspect} (#{value.class})" unless valid
