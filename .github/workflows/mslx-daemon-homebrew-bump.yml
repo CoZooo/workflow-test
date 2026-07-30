@@ -146,12 +146,15 @@ jobs:
           echo "ARM_SHA=$(shasum -a 256 assets/arm64.tar.gz | awk '{print $1}')" >> "${GITHUB_ENV}"
           echo "INTEL_SHA=$(shasum -a 256 assets/x64.tar.gz | awk '{print $1}')" >> "${GITHUB_ENV}"
       - name: Update and validate Formula
+        env:
+          VERSION: ${{ needs.detect_version.outputs.latest }}
         run: |
           set -euo pipefail
           ruby <<'RUBY'
           path = "prepared/#{ENV.fetch("FORMULA_PATH")}"
-          formula = File.read(path)
+          formula = File.read(path, encoding: "UTF-8")
           replacements = {
+            /^  version "[^"]+"$/ => %(  version "#{ENV.fetch("VERSION")}"),
             /    url ".+_osx-arm64\.tar\.gz"\n    sha256 "[0-9a-f]{64}"/ =>
               %(    url "#{ENV.fetch("ARM_URL")}"\n    sha256 "#{ENV.fetch("ARM_SHA")}"),
             /    url ".+_osx-x64\.tar\.gz"\n    sha256 "[0-9a-f]{64}"/ =>
@@ -162,7 +165,6 @@ jobs:
             abort "Expected exactly one Formula block" unless matches.length == 1
             formula.sub!(pattern, value)
           end
-          abort "Formula contains redundant version stanza" if formula.lines.any? { |line| line.lstrip.start_with?("version ") }
           File.write(path, formula)
           RUBY
           ruby -c "prepared/${FORMULA_PATH}"
