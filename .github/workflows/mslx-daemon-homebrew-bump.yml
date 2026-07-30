@@ -146,19 +146,18 @@ jobs:
           echo "ARM_SHA=$(shasum -a 256 assets/arm64.tar.gz | awk '{print $1}')" >> "${GITHUB_ENV}"
           echo "INTEL_SHA=$(shasum -a 256 assets/x64.tar.gz | awk '{print $1}')" >> "${GITHUB_ENV}"
       - name: Update and validate Formula
-        env:
-          VERSION: ${{ needs.detect_version.outputs.latest }}
         run: |
           set -euo pipefail
           ruby <<'RUBY'
           path = "prepared/#{ENV.fetch("FORMULA_PATH")}"
           formula = File.read(path, encoding: "UTF-8")
+          version = ENV.fetch("VERSION")
           replacements = {
-            /^  version "[^"]+"$/ => %(  version "#{ENV.fetch("VERSION")}"),
             /    url ".+_osx-arm64\.tar\.gz"\n    sha256 "[0-9a-f]{64}"/ =>
               %(    url "#{ENV.fetch("ARM_URL")}"\n    sha256 "#{ENV.fetch("ARM_SHA")}"),
             /    url ".+_osx-x64\.tar\.gz"\n    sha256 "[0-9a-f]{64}"/ =>
               %(    url "#{ENV.fetch("INTEL_URL")}"\n    sha256 "#{ENV.fetch("INTEL_SHA")}"),
+            /  version "[^"]+"/ => %(  version "#{version}"),
           }
           replacements.each do |pattern, value|
             matches = formula.scan(pattern)
@@ -281,12 +280,12 @@ jobs:
             enable|disable) ;;
             *) echo "ENABLE_AUTO_MERGE must be enable or disable" >&2; exit 1 ;;
           esac
-      - name: Enable auto-merge
+      - name: Auto merge
         if: env.ENABLE_AUTO_MERGE == 'enable'
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_GITHUB_API_TOKEN }}
           PR_URL: ${{ needs.create_pull_request.outputs.pr_url }}
         run: gh pr merge "${PR_URL}" --repo "${TAP_REPOSITORY}" --auto --squash
-      - name: Auto-merge disabled
+      - name: Auto merge disabled
         if: env.ENABLE_AUTO_MERGE == 'disable'
         run: echo "Auto-merge is disabled by ENABLE_AUTO_MERGE."
